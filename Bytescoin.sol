@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-pragma solidity ^0.6.0;
+pragma solidity ^0.8.0;
 
 interface IERC20 {
 
@@ -46,19 +46,45 @@ contract ERC20 is IERC20 {
 
     mapping(address => mapping (address => uint256)) allowed;
 
-    
-
     using SafeMath for uint256;
     
     uint256 totalSupply_;
 
-   constructor() public {
-    totalSupply_ = initialSupply_ * (10 ** decimals);
-    balances[msg.sender] = totalSupply_; // Split totalSupply between owner and the contract.
+    // Slot machine private variables
+    uint256 private constant hBound = 1000 * (10 ** decimals);
+    uint256 private pool;
+    uint256 private constant columns = 4;
+    int private constant hProb = 65;
+    uint8[] private subdivisions;
+    uint8 private constant subdiv = 10;
+
+    function create_subdiv() private returns (uint8[subdiv] memory) {
+        
+        int rate = -5;
+        int curr_prob = hProb;
+        
+        uint[] memory sub_arr = new uint[](subdiv);
+
+        for (int i = subdiv - 1; i >= 0; i-- ) {
+            curr_prob = curr_prob * (1 + rate/100)**(i + 1);
+            sub_arr[i] = 100 - curr_prob;
+        }
+
+        return sub_arr;
+
+    }
+
+    constructor() public {
+        totalSupply_ = initialSupply_ * (10 ** decimals);
+        // Split totalSupply between owner and the contract
+        balances[msg.sender] = totalSupply_ - hBound;
+        balances[address(this)] = hBound;
+        pool = balances[address(this)];
+        subdivisions = create_subdiv();
     }
 
     function totalSupply() public override view returns (uint256) {
-    return totalSupply_;
+        return totalSupply_;
     }
 
     function balanceOf(address tokenOwner) public override view returns (uint256) {
@@ -96,16 +122,34 @@ contract ERC20 is IERC20 {
 
     // Bet function -- some address sends tokens to the contract and we add them to the pool
 
-    /*function bet(int bet) {
-        pool_address = address(this);
-        transfer(pool_address, bet);
-        return rng();
-    }*/
+    function bet(uint256 amount) public {
+        transfer(address(this), amount * 10 ** decimals);
+        pool += amount * 10 ** decimals;
+    }
+    
+    function viewpool() public view returns (uint256) {
+        return pool;
+    }
 
     // RNG function -- generate random n number and get the average value
+    function random() private view returns (uint) {
+        return uint(keccak256(block.timestamp, block.difficulty))%101;
+    }
+
+    function play() public view returns (uint256){
+        uint256 mean = 0;
+        for (uint i = 0; i < columns; i++) {
+            mean += random();
+        }
+        mean = mean / columns;
+        return mean;
+    }
+
+    function a() public view returns (uint8) {
+        return subdivisions[0];
+    }
 
     // win function
 
     // prize function
 }
-
