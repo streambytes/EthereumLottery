@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-pragma solidity ^0.8.0;
+pragma solidity ^0.6.0;
 
 interface IERC20 {
 
@@ -54,18 +54,18 @@ contract ERC20 is IERC20 {
     uint256 private constant hBound = 1000 * (10 ** decimals);
     uint256 private pool;
     uint256 private constant columns = 4;
-    int private constant hProb = 65;
-    uint8[] private subdivisions;
-    uint8 private constant subdiv = 10;
+    uint256 private constant hProb = 65;
+    uint256[] private subdivisions;
+    uint256 private constant subdiv = 10;
 
-    function create_subdiv() private returns (uint8[subdiv] memory) {
+    function create_subdiv() private returns (uint256[] memory) {
         
-        int rate = -5;
-        int curr_prob = hProb;
+        uint256 rate = 1;
+        uint256 curr_prob = hProb;
         
-        uint[] memory sub_arr = new uint[](subdiv);
+        uint256[] memory sub_arr = new uint[](subdiv);
 
-        for (int i = subdiv - 1; i >= 0; i-- ) {
+        for (uint i = subdiv - 1; i >= 0; i-- ) {
             curr_prob = curr_prob * (1 + rate/100)**(i + 1);
             sub_arr[i] = 100 - curr_prob;
         }
@@ -133,7 +133,10 @@ contract ERC20 is IERC20 {
 
     // RNG function -- generate random n number and get the average value
     function random() private view returns (uint) {
-        return uint(keccak256(block.timestamp, block.difficulty))%101;
+        uint256 _unixTimestamp;
+        uint256 _timeExpired;
+        
+        return uint(keccak256(abi.encodePacked(block.difficulty, _unixTimestamp, _timeExpired)))%101;
     }
 
     function play() public view returns (uint256){
@@ -145,7 +148,7 @@ contract ERC20 is IERC20 {
         return mean;
     }
 
-    function a() public view returns (uint8) {
+    function a() public view returns (uint256) {
         return subdivisions[0];
     }
 
