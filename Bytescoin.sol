@@ -45,28 +45,36 @@ contract ERC20 is IERC20 {
     mapping(address => uint256) balances;
 
     mapping(address => mapping (address => uint256)) allowed;
+    
+    mapping(address => uint256) public players;
 
     using SafeMath for uint256;
     
     uint256 totalSupply_;
 
     // Slot machine private variables
-    uint256 private constant hBound = 1000 * (10 ** decimals);
-    uint256 private pool;
-    uint256 private constant columns = 4;
-    uint256 private constant hProb = 65;
+    uint256 private constant hBound = 900 * (10 ** decimals);
+    uint256 public pool;
+    uint256 private constant columns = 1;
     uint256[] private subdivisions;
-    uint256 private constant subdiv = 10;
+    uint256 private constant subdiv = 9;
+    uint256 private hProb = 80;
+    uint256 public prizeValue = 0;
+    uint256 public mean = 0;
+    uint256 public nonce;
+    uint256 public globalRandom;
+    
+    
+    
 
-    function create_subdiv() private returns (uint256[] memory) {
+    function create_subdiv() private pure returns (uint256[] memory) {
         
-        uint256 rate = 1;
-        uint256 curr_prob = hProb;
+        uint256 curr_prob;
         
         uint256[] memory sub_arr = new uint[](subdiv);
 
-        for (uint i = subdiv - 1; i >= 0; i-- ) {
-            curr_prob = curr_prob * (1 + rate/100)**(i + 1);
+        for (uint i = 0; i < subdiv; i++ ) {
+            curr_prob =  i**2;
             sub_arr[i] = 100 - curr_prob;
         }
 
@@ -121,38 +129,67 @@ contract ERC20 is IERC20 {
     }
 
     // Bet function -- some address sends tokens to the contract and we add them to the pool
-
-    function bet(uint256 amount) public {
-        transfer(address(this), amount * 10 ** decimals);
-        pool += amount * 10 ** decimals;
-    }
     
-    function viewpool() public view returns (uint256) {
-        return pool;
+    function bet(uint256 amount) public {
+        pool += amount * 10 ** decimals;
+        players[msg.sender] += amount * 10 ** decimals;
+        transfer(address(this), amount * 10 ** decimals);
     }
+
 
     // RNG function -- generate random n number and get the average value
-    function random() private view returns (uint) {
-        uint256 _unixTimestamp;
-        uint256 _timeExpired;
-        
-        return uint(keccak256(abi.encodePacked(block.difficulty, _unixTimestamp, _timeExpired)))%101;
+    function random() public returns (uint256) {
+        uint256 randomnumber = uint256(keccak256(abi.encodePacked(now, msg.sender, nonce))) % 101;
+        nonce++;
+        globalRandom = randomnumber;
+        return randomnumber;
     }
 
-    function play() public view returns (uint256){
-        uint256 mean = 0;
-        for (uint i = 0; i < columns; i++) {
-            mean += random();
+    /*function a() public view returns (uint256) {
+        return subdivisions[3];
+    }*/
+
+    
+
+    function play() public {
+        if (players[msg.sender] > 0) {
+            uint256 amount = players[msg.sender];
+            //players[msg.sender] = 0;
+            mean = 0;
+            for (uint i = 0; i < columns; i++) {
+                mean += random();
+            }
+            //mean = mean / columns;
+            
+            if (win()) {
+                prize(amount);
+            } 
         }
-        mean = mean / columns;
-        return mean;
+        
     }
-
-    function a() public view returns (uint256) {
-        return subdivisions[0];
-    }
-
     // win function
+    
+    function win() private view returns (bool) {
+        if (pool > hBound) {
+            uint256 chance = 100 - hProb;
+            return mean > chance;
+        }
+
+        uint256 x = uint256((hBound - pool)/100); //Number from 0 to 8
+
+        uint256 chance = subdivisions[subdiv - 1 - x];
+        return mean > chance;
+        
+    }
 
     // prize function
+
+    function prize(uint256 amount) private {
+        transfer(msg.sender, amount * 10 ** decimals);
+        amount = amount * 10 ** decimals;
+        pool -= amount;
+        uint256 perc = (amount/100) * 20;
+        pool -= perc;
+        prizeValue = amount + perc;
+    }
 }
