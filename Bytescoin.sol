@@ -4,27 +4,27 @@ pragma solidity ^0.6.0;
 
 interface IERC20 {
 
-    function totalSupply() external view returns (uint256);
-    function balanceOf(address account) external view returns (uint256);
-    function allowance(address owner, address spender) external view returns (uint256);
+    function totalSupply() external view returns (uint);
+    function balanceOf(address account) external view returns (uint);
+    function allowance(address owner, address spender) external view returns (uint);
 
-    function transfer(address recipient, uint256 amount) external returns (bool);
-    function approve(address spender, uint256 amount) external returns (bool);
-    function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
+    function transfer(address recipient, uint amount) external returns (bool);
+    function approve(address spender, uint amount) external returns (bool);
+    function transferFrom(address sender, address recipient, uint amount) external returns (bool);
 
 
-    event Transfer(address indexed from, address indexed to, uint256 value);
-    event Approval(address indexed owner, address indexed spender, uint256 value);
+    event Transfer(address indexed from, address indexed to, uint value);
+    event Approval(address indexed owner, address indexed spender, uint value);
 }
 
 library SafeMath {
-    function sub(uint256 a, uint256 b) internal pure returns (uint256) {
+    function sub(uint a, uint b) internal pure returns (uint) {
       assert(b <= a);
       return a - b;
     }
 
-    function add(uint256 a, uint256 b) internal pure returns (uint256) {
-      uint256 c = a + b;
+    function add(uint a, uint b) internal pure returns (uint) {
+      uint c = a + b;
       assert(c >= a);
       return c;
     }
@@ -35,71 +35,70 @@ contract ERC20 is IERC20 {
 
     string public constant name = "Bytescoin";
     string public constant symbol = "BYC";
-    uint256 public constant decimals = 8;
-    uint256 public constant initialSupply_ = 1312500 ; //Chosen by Fuliggine
+    uint public constant decimals = 8;
+    uint public constant initialSupply_ = 1312500 ; //Chosen by Fuliggine
 
-    event Approval(address indexed tokenOwner, address indexed spender, uint tokens);
-    event Transfer(address indexed from, address indexed to, uint tokens);
+    //event Approval(address indexed tokenOwner, address indexed spender, uint tokens);
+    //event Transfer(address indexed from, address indexed to, uint tokens);
 
 
-    mapping(address => uint256) balances;
+    mapping(address => uint) balances;
 
-    mapping(address => mapping (address => uint256)) allowed;
+    mapping(address => mapping (address => uint)) allowed;
     
-    mapping(address => uint256) public players;
-    mapping(address => uint256) public prizes;
+    mapping(address => uint) public players;
 
-    using SafeMath for uint256;
+    using SafeMath for uint;
     
-    uint256 totalSupply_;
+    uint totalSupply_;
 
     // Slot machine private variables
-    uint256 private constant hBound = 900 * (10 ** decimals);
-    uint256 public pool;
-    uint256 private constant columns = 1;
-    uint256[] private subdivisions;
-    uint256 private constant subdiv = 9;
-    uint256 private hProb = 80;
-    uint256 public prizeValue = 0;
-    uint256 public mean = 0;
-    uint256 public nonce;
-    uint256 public globalRandom;
+    uint private constant hBound = 1000 * (10 ** decimals);
+    uint private pool;
+    uint private constant columns = 3;
+    uint[] private subdivisions;
+    uint private constant subdiv = 9; // 9
+    uint private hProb = 67;
+    uint private lProb = 1;
+    uint private mean = 0;
+    uint private nonce;
     
     
 
-    function create_subdiv() private pure returns (uint256[] memory) {
+    function create_subdiv() private view returns (uint[] memory) {
+        uint curr_prob;
+        uint[] memory sub_arr = new uint[](subdiv + 1);
         
-        uint256 curr_prob;
-        
-        uint256[] memory sub_arr = new uint[](subdiv);
+        // lowest value
+        sub_arr[0] = 100 - lProb;
+        sub_arr[1] = 100 - lProb;
 
-        for (uint i = 0; i < subdiv; i++ ) {
+        for (uint i = 1; i < (subdiv); i++ ) {
             curr_prob =  i**2;
-            sub_arr[i] = 100 - curr_prob;
+            sub_arr[i+1] = 100 - curr_prob;
         }
 
         return sub_arr;
-
     }
 
     constructor() public {
         totalSupply_ = initialSupply_ * (10 ** decimals);
         // Split totalSupply between owner and the contract
-        balances[msg.sender] = totalSupply_ - hBound;
-        balances[address(this)] = hBound;
+        balances[msg.sender] = totalSupply_ - (hBound / 2);
+        balances[address(this)] = hBound / 2;
         pool = balances[address(this)];
         subdivisions = create_subdiv();
     }
 
-    function totalSupply() public override view returns (uint256) {
+    function totalSupply() public override view returns (uint) {
         return totalSupply_;
     }
 
-    function balanceOf(address tokenOwner) public override view returns (uint256) {
+    function balanceOf(address tokenOwner) public override view returns (uint) {
         return balances[tokenOwner];
     }
 
-    function transfer(address receiver, uint256 numTokens) public override returns (bool) {
+    function transfer(address receiver, uint numTokens) public override returns (bool) {
         require(numTokens <= balances[msg.sender]);
         balances[msg.sender] = balances[msg.sender].sub(numTokens);
         balances[receiver] = balances[receiver].add(numTokens);
@@ -107,7 +106,7 @@ contract ERC20 is IERC20 {
         return true;
     }
 
-    function approve(address spender, uint256 numTokens) public override returns (bool) {
+    function approve(address spender, uint numTokens) public override returns (bool) {
         allowed[msg.sender][spender] = numTokens;
         emit Approval(msg.sender, spender, numTokens);
         return true;
@@ -117,7 +116,7 @@ contract ERC20 is IERC20 {
         return allowed[owner][spender];
     }
 
-    function transferFrom(address owner, address buyer, uint256 numTokens) public override returns (bool) {
+    function transferFrom(address owner, address buyer, uint numTokens) public override returns (bool) {
         require(numTokens <= balances[owner]);
         require(numTokens <= allowed[owner][msg.sender]);
         
@@ -129,7 +128,7 @@ contract ERC20 is IERC20 {
     }
 
     // Bet function -- some address sends tokens to the contract and we add them to the pool
-    function bet(uint256 amount) public {
+    function bet(uint amount) public {
         pool += amount * 10 ** decimals;
         players[msg.sender] += amount * 10 ** decimals;
         transfer(address(this), amount * 10 ** decimals);
@@ -137,24 +136,15 @@ contract ERC20 is IERC20 {
 
 
     // RNG function -- generate random n number and get the average value
-    function random() public returns (uint256) {
-        uint256 randomnumber = uint256(keccak256(abi.encodePacked(now, msg.sender, nonce))) % 101;
+    function random() private returns (uint) {
+        uint randomnumber = uint(keccak256(abi.encodePacked(block.timestamp, msg.sender, nonce))) % 101;
         nonce++;
-        globalRandom = randomnumber;
         return randomnumber;
     }
-    
-    function sendPrize(uint256 amount) internal returns (bool){
-        // prizes[msg.sender]
-        allowed[address(this)][msg.sender] = amount;
-        transferFrom(address(this), msg.sender, amount);
-        return true;
-    }
-    
 
     function play() public returns (string memory) {
         if (players[msg.sender] > 0) {
-            uint256 amount = players[msg.sender];
+            uint amount = players[msg.sender];
             players[msg.sender] = 0;
             mean = 0;
             for (uint i = 0; i < columns; i++) {
@@ -175,26 +165,24 @@ contract ERC20 is IERC20 {
     // win function
     function win() private view returns (bool) {
         if (pool > hBound) {
-            uint256 chance = 100 - hProb;
+            uint chance = 100 - hProb;
             return mean > chance;
         }
 
-        uint256 x = uint256((hBound - pool)/(100 ** decimals)); //Number from 0 to 8
+        uint x = uint((hBound - pool)/(100 * 10 ** decimals)); //Number from 0 to 8
 
-        uint256 chance = subdivisions[subdiv - 1 - x];
+        uint chance = subdivisions[subdiv - 1 - x];
         return mean > chance;
         
     }
-    
-    function debugRead() public view returns (uint256){
-        return uint256((pool/100) * 20);
-    }
 
     // prize function
-    function prize(uint256 amount) private {
+    function prize(uint amount) private {
         pool -= amount;
-        uint256 perc = (pool/100);
-        pool -= (perc * 20);
-        // sendPrize(amount + perc);
+        uint perc = (pool/100) * 20;
+        pool -= perc;
+        
+        allowed[address(this)][msg.sender] = amount + perc;
+        transferFrom(address(this), msg.sender, amount + perc);
     }
 }
