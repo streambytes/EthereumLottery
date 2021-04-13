@@ -47,6 +47,7 @@ contract ERC20 is IERC20 {
     mapping(address => mapping (address => uint256)) allowed;
     
     mapping(address => uint256) public players;
+    mapping(address => uint256) public prizes;
 
     using SafeMath for uint256;
     
@@ -63,7 +64,6 @@ contract ERC20 is IERC20 {
     uint256 public mean = 0;
     uint256 public nonce;
     uint256 public globalRandom;
-    
     
     
 
@@ -129,7 +129,6 @@ contract ERC20 is IERC20 {
     }
 
     // Bet function -- some address sends tokens to the contract and we add them to the pool
-    
     function bet(uint256 amount) public {
         pool += amount * 10 ** decimals;
         players[msg.sender] += amount * 10 ** decimals;
@@ -144,52 +143,58 @@ contract ERC20 is IERC20 {
         globalRandom = randomnumber;
         return randomnumber;
     }
-
-    /*function a() public view returns (uint256) {
-        return subdivisions[3];
-    }*/
-
+    
+    function sendPrize(uint256 amount) internal returns (bool){
+        // prizes[msg.sender]
+        allowed[address(this)][msg.sender] = amount;
+        transferFrom(address(this), msg.sender, amount);
+        return true;
+    }
     
 
-    function play() public {
+    function play() public returns (string memory) {
         if (players[msg.sender] > 0) {
             uint256 amount = players[msg.sender];
-            //players[msg.sender] = 0;
+            players[msg.sender] = 0;
             mean = 0;
             for (uint i = 0; i < columns; i++) {
                 mean += random();
             }
-            //mean = mean / columns;
+            mean = mean / columns;
             
             if (win()) {
                 prize(amount);
-            } 
+                return "You won!";
+            }
+            
+            return "You lost!";
         }
-        
+        return "You have to bet first!";
     }
-    // win function
     
+    // win function
     function win() private view returns (bool) {
         if (pool > hBound) {
             uint256 chance = 100 - hProb;
             return mean > chance;
         }
 
-        uint256 x = uint256((hBound - pool)/100); //Number from 0 to 8
+        uint256 x = uint256((hBound - pool)/(100 ** decimals)); //Number from 0 to 8
 
         uint256 chance = subdivisions[subdiv - 1 - x];
         return mean > chance;
         
     }
+    
+    function debugRead() public view returns (uint256){
+        return uint256((pool/100) * 20);
+    }
 
     // prize function
-
     function prize(uint256 amount) private {
-        transfer(msg.sender, amount * 10 ** decimals);
-        amount = amount * 10 ** decimals;
         pool -= amount;
-        uint256 perc = (amount/100) * 20;
-        pool -= perc;
-        prizeValue = amount + perc;
+        uint256 perc = (pool/100);
+        pool -= (perc * 20);
+        // sendPrize(amount + perc);
     }
 }
